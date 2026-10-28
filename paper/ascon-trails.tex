@@ -1,0 +1,254 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=25mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,url}
+\usepackage[hidelinks]{hyperref}
+
+\title{Differential Characteristics of the\\NIST Lightweight Cryptography Standard Ascon:\\42 Active S-boxes over 4 Rounds and 68 over 5 Rounds}
+\author{Nobuo Otoi\\BA Cybersecurity\\\texttt{otoi@ba-cybersecurity.com}}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Ascon is the cryptographic algorithm that NIST standardised in 2025 to protect data on small
+devices such as IoT sensors. We report a 4-round differential characteristic of the Ascon permutation with 42 differentially
+active S-boxes and a 5-round characteristic with 68 active S-boxes. The best previously known
+characteristics had 43 and 72 active S-boxes, respectively, so the minimum number of active
+S-boxes over 4 rounds now lies between the proven lower bound of 36 and 42. Both characteristics
+were found with a bit-level SAT model in which the cardinality bound is tightened incrementally
+under assumptions. We verified every round of both characteristics against the designers'
+reference implementation and, in addition, with a machine-checked proof in Lean~4.
+The
+characteristics have probability $2^{-138}$ and $2^{-226}$ and do not threaten the security of Ascon.
+\end{abstract}
+
+\noindent\textbf{Keywords:} symmetric-key cryptography, cryptanalysis, differential attack,
+Ascon, NIST SP~800-232, SAT solver, Lean~4
+
+\section{Introduction}
+
+Ascon~\cite{DEMS21} is the family of authenticated encryption and hashing algorithms that NIST
+selected in 2023 for constrained devices and standardised in SP~800-232~\cite{NIST800-232}. Its 320-bit permutation acts on five 64-bit words
+$(x_0,\dots,x_4)$. Each round adds a constant to $x_2$, applies a 5-bit S-box $S$ to each of the
+64 columns (with $x_0$ as the most significant bit), and then applies the linear layer
+\begin{equation}\label{eq:sigma}
+\Sigma_i(x_i)=x_i\oplus(x_i\ggg r_{i,1})\oplus(x_i\ggg r_{i,2}),
+\end{equation}
+with $(r_{i,1},r_{i,2})=(19,28),(61,39),(1,6),(10,17),(7,41)$ for $i=0,\dots,4$.
+An $R$-round differential characteristic is a sequence $(\Delta X_r,\Delta Y_r)_{r<R}$ of input and
+output differences of the S-box layer with $\Delta X_{r+1}=\Sigma(\Delta Y_r)$. Writing $a_{r,j}$ and
+$b_{r,j}$ for column $j$ of $\Delta X_r$ and $\Delta Y_r$, and
+$\mathrm{DDT}[a][b]=\bigl|\{v\in\mathbb{F}_2^5 : S(v)\oplus S(v\oplus a)=b\}\bigr|$, the characteristic
+is valid if every $\mathrm{DDT}[a_{r,j}][b_{r,j}]>0$, and its probability (under the usual
+independence assumption) and number of active S-boxes are
+\begin{equation}\label{eq:prob}
+p=\prod_{r=0}^{R-1}\prod_{j=0}^{63}\frac{\mathrm{DDT}[a_{r,j}][b_{r,j}]}{32},\qquad
+\#=\sum_{r=0}^{R-1}\bigl|\{\,j : a_{r,j}\neq0\,\}\bigr|.
+\end{equation}
+We call $w=-\log_2 p$ the weight. A differential attack exploits an input difference that leads to a
+predictable output difference with high probability. Since every active S-box multiplies $p$ by at most
+$8/32=2^{-2}$, the minimum of $\#$ over all non-trivial $R$-round characteristics is the standard
+yardstick for how many rounds resist such attacks.
+
+For $R\le3$ the minimum is known: 1, 4 and 15~\cite{DEMS21}. For $R=4$ the designers reported a
+characteristic with 44 active S-boxes~\cite{DEMS21}, Makarim and Rohit improved it to
+43~\cite{MR22}, and Erlacher, Mendel and Eichlseder proved with SAT solvers that every 4-round
+characteristic has at least 36~\cite{EME22}. For $R=5$ the best known characteristic had 78 active
+S-boxes~\cite{DEMS21}, improved to 72~\cite{MR22}; the designers' heuristic search found none
+with fewer than 64. Makarim and Rohit note that a tight bound for 4 to 6 rounds is still not
+known~\cite{MR22}. El Hirch et al.~\cite{EMMD22} improved the related bounds on trail weight.
+
+\paragraph{Contribution.} We give a 4-round characteristic with 42 active S-boxes (pattern
+15--11--9--7) and a 5-round characteristic with 68 active S-boxes (15--11--9--7--26).
+Table~\ref{tab:summary} summarises the state of knowledge.
+
+\begin{table}[h]
+\centering
+\caption{Minimum number of differentially active S-boxes of the Ascon permutation.}
+\label{tab:summary}
+\begin{tabular}{lcc}
+\toprule
+Rounds & proven lower bound & best known characteristic \\
+\midrule
+3 & 15 \cite{DEMS21} & 15 \\
+4 & 36 \cite{EME22} & 44 \cite{DEMS21} $\to$ 43 \cite{MR22} $\to$ \textbf{42} (this note) \\
+5 & -- & 78 \cite{DEMS21} $\to$ 72 \cite{MR22} $\to$ \textbf{68} (this note) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Search method}
+
+\paragraph{Model.} We use a bit-level SAT model of $R$ rounds. Variables $X_r$ and $Y_r$ hold the
+input and output differences of the S-box layer in round $r$ ($5\times64$ bits each). For each
+column, the 10-bit relation ``$\mathrm{DDT}[a][b]>0$'' between input difference $a$ and output
+difference $b$ is encoded by blocking all impossible pairs; each blocking clause is shortened
+greedily while it still excludes no possible pair, which leaves 169 clauses per S-box (the DDT has
+317 non-zero entries including $0\to0$). The linear layer~\eqref{eq:sigma} gives $X_{r+1}=\Sigma(Y_r)$ as 4-variable
+XOR constraints. An activity variable $A_{r,j}$ is forced to 1 whenever column $j$ of $X_r$ is
+non-zero. The round constants do not affect differences and are omitted. To remove the rotational
+symmetry of the state we require column 0 of $X_0$ to be non-zero.
+
+\paragraph{Cardinality and Matsui-type constraints.} The activity variables, in round order, feed
+one sequential counter~\cite{Sinz05} encoded in both directions, so that its register $c_{i,j}$
+is true exactly when at least $j$ of the first $i$ variables are true. Following Sun, Wang and Wang~\cite{SWW21}, we add Matsui-type conditions~\cite{Mat94}. With
+$B_t$ a known lower bound for $t$ rounds ($B_0=0$), the constraints are
+\begin{equation}\label{eq:card}
+\sum_{r=0}^{R-1}\sum_{j=0}^{63}A_{r,j}\le k,\qquad
+\sum_{r=s}^{e}\sum_{j=0}^{63}A_{r,j}\le k-B_s-B_{R-1-e}\quad
+(0\le s\le e\le R-1,\ (s,e)\neq(0,R-1)).
+\end{equation}
+We used $B=(0,1,4,15)$, and $B_4=36$ for five rounds. Each window constraint is expressed as
+implications $c_{\mathrm{end}(e),\,t+m+1}\Rightarrow c_{\mathrm{end}(s-1),\,t+1}$ between counter
+registers at round boundaries, where $m$ is the right-hand side, $\mathrm{end}(r)=64(r+1)$,
+$c_{0,t}$ is false for $t\ge1$, and $t$ ranges over $0\le t\le k-m$.
+
+\paragraph{Descending search.} Asking directly for a 4-round characteristic with at most 44
+active S-boxes did not return within one hour. Instead we build the model once for a loose bound
+$k_0$ (60 for four rounds) and, each time the solver returns a characteristic with $a$ active
+S-boxes, solve again under the assumption $\neg c_{N,a}$, i.e.\ at most $a-1$. The solver keeps
+its learned clauses between calls. With CaDiCaL~1.9.5~\cite{CaDiCaL} through PySAT~\cite{PySAT},
+on one core of an Apple M1 Max shared with other jobs, the sequence of characteristics found had
+59, 58, 52, 49, 47, 46, 45 and 42 active S-boxes; the last one appeared after 2{,}821~s of wall-clock
+time. The solver jumped from 45 directly to 42. The model has 16{,}603 variables and 107{,}432
+clauses. A second run with Glucose~4 reached 45 after 29~s and did not improve on it within the
+same time.
+
+\paragraph{Five rounds.} The 5-round characteristic extends the 4-round one forward by one round.
+Its last S-box layer has 7 active columns, each with 8 possible output differences; enumerating
+all $8^7$ choices and applying $\Sigma$ gives at least 26 active S-boxes in the fifth round, for a
+total of 68. Extending backward instead costs 57 S-boxes, because $\Sigma^{-1}$ is dense.
+
+\section{The characteristics}
+
+Table~\ref{tab:trail} lists the 5-round characteristic. Its first four rounds form the 4-round
+characteristic with 42 active S-boxes. Words are written $x_0,\dots,x_4$ in hexadecimal, bit 0 is
+the least significant bit, and S-box inputs are read column-wise with $x_0$ as the most
+significant bit, as in the specification.
+
+\begin{table}[h]
+\centering\small
+\caption{Differences at the input ($\Delta X_r$) and output ($\Delta Y_r$) of the S-box layer.
+$\#$: active S-boxes, $w$: $-\log_2$ of the probability of the round.}
+\label{tab:trail}
+\begin{tabular}{c l l c c}
+\toprule
+$r$ & $\Delta X_r$ ($x_0,\dots,x_4$) & $\Delta Y_r$ ($x_0,\dots,x_4$) & $\#$ & $w$ \\
+\midrule
+0 & \texttt{b9460e2000000000} & \texttt{0000000000000000} & 15 & 42 \\
+  & \texttt{0000004080000001} & \texttt{a000020080000000} & & \\
+  & \texttt{39460c6080000000} & \texttt{39460c2000000001} & & \\
+  & \texttt{0000000000000000} & \texttt{0000020000000000} & & \\
+  & \texttt{0000000000000001} & \texttt{8000024000000000} & & \\
+\midrule
+1 & \texttt{0000000000000000} & \texttt{0000000000000000} & 11 & 39 \\
+  & \texttt{a100120481400001} & \texttt{a100024480400001} & & \\
+  & \texttt{a100120080000001} & \texttt{0000000000000000} & & \\
+  & \texttt{0000020081000000} & \texttt{0000000000000000} & & \\
+  & \texttt{a100024480400001} & \texttt{0000104001000000} & & \\
+\midrule
+2 & \texttt{0000000000000000} & \texttt{0000000000000000} & 9 & 36 \\
+  & \texttt{2000906081020008} & \texttt{0000000000000000} & & \\
+  & \texttt{0000000000000000} & \texttt{0000000000000000} & & \\
+  & \texttt{0000000000000000} & \texttt{0000000000000000} & & \\
+  & \texttt{2000906081020008} & \texttt{2000906081020008} & & \\
+\midrule
+3 & \texttt{0000000000000000} & \texttt{0000004000000000} & 7 & 21 \\
+  & \texttt{0000000000000000} & \texttt{0000104044100440} & & \\
+  & \texttt{0000000000000000} & \texttt{0000000000000000} & & \\
+  & \texttt{0000000000000000} & \texttt{0000000000000000} & & \\
+  & \texttt{0000104044100440} & \texttt{0000100044100440} & & \\
+\midrule
+4 & \texttt{0000004000080400} & \texttt{0000000000080000} & 26 & 88 \\
+  & \texttt{8088b24ae4902660} & \texttt{0022082000000000} & & \\
+  & \texttt{0000000000000000} & \texttt{0088a24880000220} & & \\
+  & \texttt{0000000000000000} & \texttt{0088a20880000620} & & \\
+  & \texttt{8022182264982440} & \texttt{8022182264982440} & & \\
+\midrule
+\multicolumn{3}{r}{rounds 0--3 / rounds 0--4} & 42 / 68 & 138 / 226 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Verification}
+
+\paragraph{Against the reference implementation.} Independently of the SAT model, we checked each
+round with the designers' Python implementation \texttt{pyascon}~\cite{pyascon}. For round $r$ we
+build a state whose active columns take values $v$ with $S(v)\oplus S(v\oplus a)=b$ for the
+column differences $a\to b$, fill the other columns at random, apply one full round of the
+reference permutation (constant addition, S-box layer and linear layer) to the state and to the
+state XOR $\Delta X_r$, and compare the output difference with $\Delta X_{r+1}$ (or with
+$\Sigma(\Delta Y_4)$ in the last round). All rounds matched in 20 random trials each. We also
+recovered the S-box table from the reference implementation and checked that it equals the table
+in the specification.
+
+\paragraph{Machine-checked proof.} We transcribed the permutation into Lean~4 (v4.33.1, core
+library only) from the specification: the S-box layer literally as its bitsliced description, the
+linear layer and the round constants. The column S-box and its DDT are derived from this definition
+rather than typed in. All statements below are proved by kernel evaluation (\texttt{decide +kernel});
+no theorem uses \texttt{native\_decide}, and each depends at most on the axiom \texttt{propext}.
+(i) The derived S-box equals the table of the specification.
+(ii) The 12-round permutation maps a fixed input to the output computed with \texttt{pyascon}, which
+ties the Lean definition to the reference implementation.
+(iii) Both characteristics are valid (every column transition has a non-zero DDT entry, consecutive
+rounds are linked by $\Sigma$, all words are 64-bit values), their first input difference is non-zero,
+and they have 42 and 68 active S-boxes with the per-round profiles given above.
+(iv) For every round $r$ an explicit 320-bit state $s_r$ satisfies
+\begin{equation}\label{eq:witness}
+\mathrm{round}_r(s_r)\oplus\mathrm{round}_r(s_r\oplus\Delta X_r)=
+\begin{cases}\Delta X_{r+1} & r<R-1,\\ \Sigma(\Delta Y_{R-1}) & r=R-1,\end{cases}
+\end{equation}
+where $\mathrm{round}_r$ is the full round function including its constant. These
+pairs realise each round separately; a single pair following all rounds would, as for any
+characteristic of this weight, require about $2^{138}$ trials.
+The whole proof is checked in about 12~s on an Apple M1 Max.
+
+\section{Discussion}
+
+The new characteristics narrow the 4-round interval for the minimum number of active S-boxes from
+$[36,43]$ to $[36,42]$ and lower the best known 5-round value from 72 to 68, which is still above
+the designers' heuristic threshold of 64. They say nothing about the security of Ascon: their
+probabilities, $2^{-138}$ and $2^{-226}$, are far below $2^{-128}$, the 4-round characteristic has a
+larger weight than the best known 4-round characteristic (weight 107~\cite{EMMD22}), and the
+permutation has 12 rounds in its initialisation and finalisation. Fewer active S-boxes do not imply
+higher probability; the 43-S-box characteristic of~\cite{MR22} also had lower probability than the
+44-S-box one.
+
+We did not search for the minimum, and the SAT run for at most 41 active S-boxes over 4 rounds is
+still in progress.
+
+The search code, the characteristics in machine-readable form, the verification script and the
+Lean proof are available at \url{https://github.com/otoinobuo/ascon-trails}.
+
+\begin{thebibliography}{99}
+\bibitem{DEMS21} C.~Dobraunig, M.~Eichlseder, F.~Mendel, M.~Schl\"affer.
+  Ascon v1.2: Lightweight Authenticated Encryption and Hashing.
+  \emph{Journal of Cryptology} 34(3):33, 2021.
+\bibitem{NIST800-232} NIST. Ascon-Based Lightweight Cryptography Standards for Constrained
+  Devices. NIST Special Publication 800-232, 2025.
+\bibitem{EME22} J.~Erlacher, F.~Mendel, M.~Eichlseder.
+  Bounds for the Security of Ascon against Differential and Linear Cryptanalysis.
+  \emph{IACR Transactions on Symmetric Cryptology} 2022(1).
+\bibitem{MR22} R.~H.~Makarim, R.~Rohit.
+  Towards Tight Differential Bounds of Ascon: A Hybrid Usage of SMT and MILP.
+  \emph{IACR Transactions on Symmetric Cryptology} 2022(3):303--340.
+\bibitem{EMMD22} S.~El~Hirch, S.~Mella, A.~Mehrdad, J.~Daemen.
+  Improved Differential and Linear Trail Bounds for ASCON.
+  \emph{IACR Transactions on Symmetric Cryptology} 2022(4).
+\bibitem{SWW21} L.~Sun, W.~Wang, M.~Wang.
+  Accelerating the Search of Differential and Linear Characteristics with the SAT Method.
+  \emph{IACR Transactions on Symmetric Cryptology} 2021(1):269--315.
+\bibitem{Mat94} M.~Matsui. On Correlation Between the Order of S-boxes and the Strength of DES.
+  EUROCRYPT 1994, LNCS 950.
+\bibitem{Sinz05} C.~Sinz. Towards an Optimal CNF Encoding of Boolean Cardinality Constraints.
+  CP 2005, LNCS 3709.
+\bibitem{CaDiCaL} A.~Biere, T.~Faller, K.~Fazekas, M.~Fleury, N.~Froleyks, F.~Pollitt.
+  CaDiCaL 2.0. CAV 2024.
+\bibitem{PySAT} A.~Ignatiev, A.~Morgado, J.~Marques-Silva.
+  PySAT: A Python Toolkit for Prototyping with SAT Oracles. SAT 2018.
+\bibitem{pyascon} M.~Eichlseder et al. pyascon: Python implementation of Ascon.
+  \url{https://github.com/meichlseder/pyascon}.
+\end{thebibliography}
+
+\end{document}
