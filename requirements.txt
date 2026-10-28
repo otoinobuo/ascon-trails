@@ -1,1 +1,1 @@
-python-sat>=1.8.dev0
+python-sat==1.9.dev17  # version used for the published results (CaDiCaL 1.9.5 via solver name "cadical195")
