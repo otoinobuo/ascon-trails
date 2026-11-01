@@ -5,22 +5,25 @@
 
 \title{Differential Characteristics of the\\NIST Lightweight Cryptography Standard Ascon:\\42 Active S-boxes over 4 Rounds and 68 over 5 Rounds}
 \author{Nobuo Otoi\\BA Cybersecurity\\\texttt{otoi@ba-cybersecurity.com}}
-\date{October 2026}
+\date{November 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Ascon is the cryptographic algorithm that NIST standardised in 2025 to protect data on small
-devices such as IoT sensors. We report a 4-round differential characteristic of the Ascon permutation with 42 differentially
-active S-boxes and a 5-round characteristic with 68 active S-boxes. The best previously known
+This note analyses the permutation of Ascon, the NIST standard for lightweight authenticated
+encryption and hashing (SP~800-232); it proposes no new construction. We report a 4-round
+differential characteristic of the Ascon permutation with 42 differentially active S-boxes and a
+5-round characteristic with 68 active S-boxes. To the best of our knowledge, the best previously known
 characteristics had 43 and 72 active S-boxes, respectively, so the minimum number of active
 S-boxes over 4 rounds now lies between the proven lower bound of 36 and 42. Both characteristics
 were found with a bit-level SAT model in which the cardinality bound is tightened incrementally
 under assumptions. We verified every round of both characteristics against the designers'
-reference implementation and, in addition, with a machine-checked proof in Lean~4.
+reference implementation and, in addition, with a machine-checked proof in Lean~4. For the
+4-round characteristic we also give one concrete pair of states that follows all four rounds, which anyone
+can check in a minute; for the 5-round characteristic we have no such pair.
 The
-characteristics have probability $2^{-138}$ and $2^{-226}$ and do not threaten the security of Ascon.
+characteristics have weight 138 and 226 (probability $2^{-138}$ and $2^{-226}$ under the usual independence assumption) and do not threaten the security of Ascon.
 \end{abstract}
 
 \noindent\textbf{Keywords:} symmetric-key cryptography, cryptanalysis, differential attack,
@@ -31,7 +34,12 @@ Ascon, NIST SP~800-232, SAT solver, Lean~4
 Ascon~\cite{DEMS21} is the family of authenticated encryption and hashing algorithms that NIST
 selected in 2023 for constrained devices and standardised in SP~800-232~\cite{NIST800-232}. Its 320-bit permutation acts on five 64-bit words
 $(x_0,\dots,x_4)$. Each round adds a constant to $x_2$, applies a 5-bit S-box $S$ to each of the
-64 columns (with $x_0$ as the most significant bit), and then applies the linear layer
+64 columns (with $x_0$ as the most significant bit), where $S$ maps $0,\dots,31$ to (in hexadecimal)
+\begin{center}\small
+\texttt{04 0b 1f 14 1a 15 09 02 1b 05 08 12 1d 03 06 1c}\\
+\texttt{1e 13 07 0e 00 0d 11 18 10 0c 01 19 16 0a 0f 17}
+\end{center}
+\noindent and then applies the linear layer
 \begin{equation}\label{eq:sigma}
 \Sigma_i(x_i)=x_i\oplus(x_i\ggg r_{i,1})\oplus(x_i\ggg r_{i,2}),
 \end{equation}
@@ -48,20 +56,33 @@ p=\prod_{r=0}^{R-1}\prod_{j=0}^{63}\frac{\mathrm{DDT}[a_{r,j}][b_{r,j}]}{32},\qq
 \end{equation}
 We call $w=-\log_2 p$ the weight. A differential attack exploits an input difference that leads to a
 predictable output difference with high probability. Since every active S-box multiplies $p$ by at most
-$8/32=2^{-2}$, the minimum of $\#$ over all non-trivial $R$-round characteristics is the standard
-yardstick for how many rounds resist such attacks.
+$8/32=2^{-2}$, lower bounds on $\#$ over all non-trivial $R$-round characteristics are a common way to argue how many
+rounds resist such attacks, and a concrete characteristic shows how far such a bound can go at most.
 
 For $R\le3$ the minimum is known: 1, 4 and 15~\cite{DEMS21}. For $R=4$ the designers reported a
 characteristic with 44 active S-boxes~\cite{DEMS21}, Makarim and Rohit improved it to
 43~\cite{MR22}, and Erlacher, Mendel and Eichlseder proved with SAT solvers that every 4-round
 characteristic has at least 36~\cite{EME22}. For $R=5$ the best known characteristic had 78 active
-S-boxes~\cite{DEMS21}, improved to 72~\cite{MR22}; the designers' heuristic search found none
-with fewer than 64. Makarim and Rohit note that a tight bound for 4 to 6 rounds is still not
+S-boxes~\cite{DEMS21}, improved to 72~\cite{MR22}. Makarim and Rohit note that a tight bound for 4 to 6 rounds is still not
 known~\cite{MR22}. El Hirch et al.~\cite{EMMD22} improved the related bounds on trail weight.
 
 \paragraph{Contribution.} We give a 4-round characteristic with 42 active S-boxes (pattern
 15--11--9--7) and a 5-round characteristic with 68 active S-boxes (15--11--9--7--26).
 Table~\ref{tab:summary} summarises the state of knowledge.
+
+\paragraph{Check it yourself.} The 4-round claim does not depend on our search or on trust in us. Take
+the two states below, $P$ and $P\oplus\Delta$, and run both through the last four rounds of the permutation with the
+designers' \texttt{pyascon}, \texttt{ascon\_permutation(S, rounds=4)}. The output difference is the one
+shown, as the characteristic predicts.
+{\footnotesize
+\begin{verbatim}
+P  = a69ddcdf1017bede 84a033cdd3354b73 6bcd5a36901c4381 2638430fac79e91d a480735de75e0dc8
+D  = b9460e2000000000 0000004080000001 39460c6080000000 0000000000000000 0000000000000001
+out= 0000004000080400 8088b24ae4902660 0000000000000000 0000000000000000 8022182264982440
+\end{verbatim}
+}
+\noindent The script \texttt{verify/check.py} in the repository, which has no dependencies, repeats this round by round and counts the columns
+in which the two states differ before each S-box layer: 15, 11, 9 and 7, in total 42.
 
 \begin{table}[h]
 \centering
@@ -73,7 +94,7 @@ Rounds & proven lower bound & best known characteristic \\
 \midrule
 3 & 15 \cite{DEMS21} & 15 \\
 4 & 36 \cite{EME22} & 44 \cite{DEMS21} $\to$ 43 \cite{MR22} $\to$ \textbf{42} (this note) \\
-5 & -- & 78 \cite{DEMS21} $\to$ 72 \cite{MR22} $\to$ \textbf{68} (this note) \\
+5 & 37 (trivially $36+1$) & 78 \cite{DEMS21} $\to$ 72 \cite{MR22} $\to$ \textbf{68} (this note) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -113,7 +134,10 @@ on one core of an Apple M1 Max shared with other jobs, the sequence of character
 59, 58, 52, 49, 47, 46, 45 and 42 active S-boxes; the last one appeared after 2{,}821~s of wall-clock
 time. The solver jumped from 45 directly to 42. The model has 16{,}603 variables and 107{,}432
 clauses. A second run with Glucose~4 reached 45 after 29~s and did not improve on it within the
-same time.
+same time. The run that reached 42 was not typical: in three repeat runs that shuffle the clauses and move the
+symmetry-breaking column (option \texttt{--seed}), all reached 45 within three minutes; one reached 43 after 38{,}458~s, and two
+remained at 45 when stopped after about 11~h. The result therefore rests on the characteristics
+themselves, which anyone can check (Section~4), and not on the search being reliably reproducible.
 
 \paragraph{Five rounds.} The 5-round characteristic extends the 4-round one forward by one round.
 Its last S-box layer has 7 active columns, each with 8 possible output differences; enumerating
@@ -122,8 +146,8 @@ total of 68. Extending backward instead costs 57 S-boxes, because $\Sigma^{-1}$ 
 
 \section{The characteristics}
 
-Table~\ref{tab:trail} lists the 5-round characteristic. Its first four rounds form the 4-round
-characteristic with 42 active S-boxes. Words are written $x_0,\dots,x_4$ in hexadecimal, bit 0 is
+Table~\ref{tab:trail} lists the 5-round characteristic. Its first four rounds form a 4-round
+characteristic with 42 active S-boxes and weight 138; the 4-round result of the search differs from it only in $\Delta Y_3$, which was re-chosen for the extension. Words are written $x_0,\dots,x_4$ in hexadecimal, bit 0 is
 the least significant bit, and S-box inputs are read column-wise with $x_0$ as the most
 significant bit, as in the specification.
 
@@ -200,23 +224,37 @@ and they have 42 and 68 active S-boxes with the per-round profiles given above.
 \begin{cases}\Delta X_{r+1} & r<R-1,\\ \Sigma(\Delta Y_{R-1}) & r=R-1,\end{cases}
 \end{equation}
 where $\mathrm{round}_r$ is the full round function including its constant. These
-pairs realise each round separately; a single pair following all rounds would, as for any
-characteristic of this weight, require about $2^{138}$ trials.
+pairs realise each round separately.
+(v) The single pair of the introduction follows all four rounds of the characteristic in
+Table~\ref{tab:trail} through rounds 8 to 11, and the active S-boxes counted from the two states alone are
+15, 11, 9 and 7 (\texttt{pair\_follows}, \texttt{pair\_active}).
 The whole proof is checked in about 12~s on an Apple M1 Max.
+
+\paragraph{A pair for all rounds.} Random trials would need about $2^{138}$ attempts, but the state
+values can be chosen directly: a SAT model of the actual values, with the conditions of the characteristic on each
+column, returned the pair of the introduction in about 3~s (CaDiCaL 1.5.3 through PySAT). The same search returned a pair for each of the 9
+windows of four consecutive rounds of the 12-round permutation. This shows that the set of pairs following the characteristic is not empty for these
+round constants, which the independence assumption in~\eqref{eq:prob} alone does not establish; it does not measure the probability $2^{-138}$.
+For the 5-round characteristic we have only the per-round check above: the same search for one pair following all five rounds gave no answer within 40 minutes, so we do not claim that such a pair exists. This matters: some published collision trails of Ascon have turned out to be invalid~\cite{LLLQS25}, and the 5-round characteristic here has not been shown to be free of that problem.
 
 \section{Discussion}
 
 The new characteristics narrow the 4-round interval for the minimum number of active S-boxes from
-$[36,43]$ to $[36,42]$ and lower the best known 5-round value from 72 to 68, which is still above
-the designers' heuristic threshold of 64. They say nothing about the security of Ascon: their
-probabilities, $2^{-138}$ and $2^{-226}$, are far below $2^{-128}$, the 4-round characteristic has a
-larger weight than the best known 4-round characteristic (weight 107~\cite{EMMD22}), and the
-permutation has 12 rounds in its initialisation and finalisation. Fewer active S-boxes do not imply
-higher probability; the 43-S-box characteristic of~\cite{MR22} also had lower probability than the
-44-S-box one.
+$[36,43]$ to $[36,42]$ and lower the best known 5-round value from 72 to 68. This is a small step: it moves neither the
+proven lower bound nor the best known weight, which is 107 for 4 rounds and 190 for 5 rounds~\cite[Table~1]{EMMD22}, against 138 and 226 here. Fewer active S-boxes do not
+imply higher probability.
 
-We did not search for the minimum, and the SAT run for at most 41 active S-boxes over 4 rounds is
-still in progress.
+The characteristics do not threaten the security of Ascon. The pair in the introduction relies on free choice of the whole 320-bit state, which no Ascon mode gives an attacker,
+and the modes use at least 8 rounds of the permutation, while these characteristics cover 4 and 5.
+
+\paragraph{Literature check.} ``Best known'' is limited by what we could read. We looked at the 23 papers citing~\cite{MR22} listed by
+Google Scholar (October 2026) and searched the Cryptology ePrint Archive and the web again (November 2026); none of what we could read
+states fewer than 42 or 68 active S-boxes for 4 or 5 rounds. Papers not citing~\cite{MR22} are covered only by those searches, some papers we read only as abstracts, and we could not
+search Chinese-language databases. Corrections are welcome.
+
+We did not determine the minimum: SAT runs asking directly for at most 41 active S-boxes over
+4 rounds (two solvers, about 7.5~h) gave no answer, which says nothing about whether such a
+characteristic exists.
 
 The search code, the characteristics in machine-readable form, the verification script and the
 Lean proof are available at \url{https://github.com/otoinobuo/ascon-trails}.
@@ -236,6 +274,11 @@ Lean proof are available at \url{https://github.com/otoinobuo/ascon-trails}.
 \bibitem{EMMD22} S.~El~Hirch, S.~Mella, A.~Mehrdad, J.~Daemen.
   Improved Differential and Linear Trail Bounds for ASCON.
   \emph{IACR Transactions on Symmetric Cryptology} 2022(4).
+\bibitem{LLLQS25} G.~Liu, S.~Li, H.~Li, W.~Qiu, S.~Sun.
+  SAT-Based Space Partitioning and Applications to Ascon-Hash256 Cryptanalysis.
+  Cryptology ePrint Archive, Paper 2025/1542.
+\bibitem{SWZ24} Song et al. New Differential-Based Distinguishers for Ascon via Constraint Programming.
+  \emph{IET Information Security}, 2024.
 \bibitem{SWW21} L.~Sun, W.~Wang, M.~Wang.
   Accelerating the Search of Differential and Linear Characteristics with the SAT Method.
   \emph{IACR Transactions on Symmetric Cryptology} 2021(1):269--315.

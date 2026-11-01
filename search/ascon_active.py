@@ -15,6 +15,7 @@ Usage:
 """
 import argparse
 import json
+import random
 import time
 
 from pysat.formula import CNF, IDPool
@@ -72,7 +73,7 @@ SBOX_CNF = sbox_clauses()
 
 
 class Model:
-    def __init__(self, R):
+    def __init__(self, R, sym_col=0):
         self.R = R
         self.pool = IDPool()
         self.cnf = CNF()
@@ -93,8 +94,8 @@ class Model:
             if r + 1 < R:
                 self.linear(r)
         # Non-trivial characteristic; to break the rotational symmetry of the columns,
-        # require column 0 of the round-0 input difference to be non-zero.
-        self.cnf.append([self.X[0][i][0] for i in range(5)])
+        # require column sym_col (default 0) of the round-0 input difference to be non-zero.
+        self.cnf.append([self.X[0][i][sym_col] for i in range(5)])
 
     def linear(self, r):
         for i, (s1, s2) in enumerate(ROT):
@@ -199,15 +200,20 @@ def solve(R, k, bounds, solver_name):
         return ok, dt, None, None, None
 
 
-def descend(R, k_start, bounds, solver_name, stop):
+def descend(R, k_start, bounds, solver_name, stop, seed=None):
     """Find a characteristic with <= k_start active S-boxes; each time one is found, solve again
     under the assumption "one fewer". The Matsui-type constraints are built for k_start (they are
     merely weaker, and still sound, for smaller k)."""
-    m = Model(R)
+    # seed: same problem, different clause order and symmetry-breaking column (for repeated runs)
+    rng = random.Random(seed) if seed is not None else None
+    m = Model(R, rng.randrange(W) if rng else 0)
     m.constrain(k_start, bounds)
     N = R * W
     t0 = time.time()
-    with Solver(name=solver_name, bootstrap_with=m.cnf.clauses) as s:
+    clauses = list(m.cnf.clauses)
+    if rng:
+        rng.shuffle(clauses)
+    with Solver(name=solver_name, bootstrap_with=clauses) as s:
         assume = []
         while True:
             ok = s.solve(assumptions=assume)
@@ -234,11 +240,12 @@ def main():
     ap.add_argument("--bounds", default="", help="known lower bounds for 1, 2, ... rounds (comma-separated)")
     ap.add_argument("--search", action="store_true")
     ap.add_argument("--solver", default="cadical195")
+    ap.add_argument("--seed", type=int, help="shuffle clauses / move the symmetry-breaking column (--descend)")
     args = ap.parse_args()
     known = [0] + [int(t) for t in args.bounds.split(",") if t != ""]
 
     if args.descend:
-        descend(args.rounds, args.k, known, args.solver, args.stop)
+        descend(args.rounds, args.k, known, args.solver, args.stop, args.seed)
     elif args.search:
         bounds = [0]
         for R in range(1, args.rounds + 1):

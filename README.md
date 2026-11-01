@@ -2,7 +2,7 @@
 
 Ascon is the cryptographic algorithm that NIST standardised in 2025 (SP 800-232) to protect
 data on small devices. This repository contains differential characteristics of the Ascon
-permutation with fewer active S-boxes than previously known, the SAT-based search that found
+permutation with fewer active S-boxes than the published values we could find, the SAT-based search that found
 them, and two independent verifications.
 
 | Rounds | proven lower bound | best known characteristic |
@@ -10,8 +10,17 @@ them, and two independent verifications.
 | 4 | 36 (Erlacher, Mendel, Eichlseder, ToSC 2022) | 44 (designers) → 43 (Makarim, Rohit, ToSC 2022) → **42** |
 | 5 | – | 78 (designers) → 72 (Makarim, Rohit, ToSC 2022) → **68** |
 
-The characteristics have probability 2^-138 (4 rounds) and 2^-226 (5 rounds) and do not
-threaten the security of Ascon. Details are in the note [`paper/ascon-trails.pdf`](paper/ascon-trails.pdf).
+The characteristics have weight 138 (4 rounds) and 226 (5 rounds) and do not threaten the security of
+Ascon. There is one concrete pair of states for the 4-round characteristic, and none for the 5-round one. Details are in the note [`paper/ascon-trails.pdf`](paper/ascon-trails.pdf).
+
+## Check it yourself (one minute, no dependencies)
+
+    python3 verify/check.py
+
+The script holds one pair of 320-bit states, written out in full, and runs both through rounds 8..11
+of the permutation, with the round function written from NIST SP 800-232. It counts the differing columns at
+each S-box layer and prints 15, 11, 9, 7 and a total of 42. The official `pyascon` gives the same
+output difference with `ascon_permutation(S, rounds=4)` on each state.
 
 ## Contents
 
@@ -20,6 +29,8 @@ threaten the security of Ascon. Details are in the note [`paper/ascon-trails.pdf
 | `trails/ascon_4r_42active.json` | 4-round characteristic, 42 active S-boxes (15-11-9-7) |
 | `trails/ascon_5r_68active.json` | 5-round characteristic, 68 active S-boxes (15-11-9-7-26); its first 4 rounds have 42 |
 | `search/ascon_active.py` | bit-level SAT model and the descending search |
+| `verify/check.py` | one pair of states through 4 rounds, active S-boxes counted; no dependencies |
+| `verify/find_pair.py` | SAT search for a pair of states that follows a characteristic |
 | `verify/verify_trail.py` | round-by-round check against the reference implementation pyascon |
 | `verify/extend.py` | forward / backward one-round extension (4 → 5 rounds) |
 | `lean/AsconTrail.lean` | Lean 4 proof (kernel-checked, no `native_decide`); see [`lean/README.md`](lean/README.md) |
@@ -37,6 +48,10 @@ not included; fetch it at the commit we used:
 
     curl -LO https://raw.githubusercontent.com/meichlseder/pyascon/ed24e54abf9507d26fa49b46a56091570c7e743e/ascon.py
 
+Find a pair of states that follows the 4-round characteristic (about 3 s, needs PySAT):
+
+    python3 verify/find_pair.py 4 8 trails/ascon_5r_68active.json
+
 Check the characteristics against the reference implementation (seconds):
 
     python3 verify/verify_trail.py ascon.py trails/ascon_4r_42active.json
@@ -51,7 +66,8 @@ Sanity check of the SAT model on known minima (1, 4, 15 for 1–3 rounds):
     python3 search/ascon_active.py --rounds 3 --k 15 --bounds 1,4
 
 Run the descending search that found the 4-round characteristic (single core; it reached 42
-after 2,821 s of wall-clock time on a shared Apple M1 Max with CaDiCaL 1.9.5; times vary):
+after 2,821 s of wall-clock time on a shared Apple M1 Max with CaDiCaL 1.9.5). This run was not typical
+and a rerun should not be expected to reach 42; the note gives the repeat runs:
 
     python3 search/ascon_active.py --rounds 4 --k 60 --bounds 1,4,15 --descend
 
@@ -63,6 +79,7 @@ Rebuild the 5-round characteristic from the 4-round one:
 
 Nobuo Otoi. Differential Characteristics of the NIST Lightweight Cryptography Standard Ascon:
 42 Active S-boxes over 4 Rounds and 68 over 5 Rounds. 2026.
+doi:[10.5281/zenodo.23858337](https://doi.org/10.5281/zenodo.23858337)
 
 ## License
 

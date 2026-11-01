@@ -7,6 +7,11 @@ active S-boxes:
 - `trail42`: 4 rounds, 42 active S-boxes (profile 15-11-9-7), from `../trails/ascon_4r_42active.json`
 - `trail68`: 5 rounds, 68 active S-boxes (profile 15-11-9-7-26), from `../trails/ascon_5r_68active.json`
 
+`pair_follows` and `pair_active` (added in v1.1) show that one single pair of states follows
+the first four rounds of `trail68` (a 42-S-box characteristic that differs from `trail42` only in the
+last output difference) through rounds 8..11, with 15, 11, 9 and 7 active
+S-boxes counted from the two states alone.
+
 Every theorem is proved with `decide +kernel`, so the Lean kernel itself evaluates it.
 No theorem uses `native_decide`. The `#print axioms` lines at the end of the file show
 only `propext` (or no axioms at all). `Lean.ofReduceBool` does not appear.
@@ -17,15 +22,15 @@ Lean version: `leanprover/lean4:v4.33.1` (no Mathlib, no lakefile needed).
 
     nice -n 20 ~/.elan/toolchains/leanprover--lean4---v4.33.1/bin/lean AsconTrail.lean
 
-A successful check prints only the 21 `#print axioms` lines and exits with status 0.
+A successful check prints only the 23 `#print axioms` lines and exits with status 0.
 (With elan as default: `lean +leanprover--lean4---v4.33.1 AsconTrail.lean`.)
 
 SHA-256 of the checked file:
-`a305b4af48d17129170c13749ef4c0e3db6a51f8cb7c83edee823c09e44e7fb9`
+`54fe679046f30e4be03d8d188ae30db659b380f9743ae64d1d77cbdfc66ad8da`
 
-## Check time (Apple M1 Max, nice 20, 2026-10-28)
+## Check time (Apple M1 Max, nice 20; table from 2026-10-28, before the pair was added)
 
-Whole file: 12.0 s wall, peak RSS 1.46 GB (about the same with `-j 1`).
+Whole file with the pair: about 11 s. Earlier whole-file measurement: 12.0 s wall, peak RSS 1.46 GB (about the same with `-j 1`).
 
 | theorem | statement | kernel time |
 |---|---|---|
@@ -75,5 +80,5 @@ makes `realisedFrom` false, and `activeCount trail42 ≠ 41`.
     python3 -I lean/gen/gen_lean.py <pyascon ascon.py> lean/AsconTrail.lean \
         trail42=trails/ascon_4r_42active.json trail68=trails/ascon_5r_68active.json
 
-Witness states are drawn with the fixed seed 20261028, so the output is byte-identical
-to the committed file when pyascon commit `ed24e54` is used.
+Witness states are drawn with the fixed seed 20261028. `AsconTrail.lean` in this repository has the theorems in a slightly different
+order from the generator's output (the set of lines is the same), because the pair was added in v1.1 by hand.
