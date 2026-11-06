@@ -81,6 +81,8 @@ Nobuo Otoi. Differential Characteristics of the NIST Lightweight Cryptography St
 42 Active S-boxes over 4 Rounds and 68 over 5 Rounds. 2026.
 doi:[10.5281/zenodo.23858337](https://doi.org/10.5281/zenodo.23858337)
 
+Summary and citation: https://ba-cybersecurity.com/research/ascon-active-sboxes/
+
 ## License
 
 MIT (see `LICENSE`).
